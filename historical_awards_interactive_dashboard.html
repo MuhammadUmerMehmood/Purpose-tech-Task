@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>historical_awards — interactive field dashboard</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #f5f5f4;
+    margin: 0;
+    padding: 32px 16px;
+    color: #1a1a1a;
+  }
+  .container { max-width: 880px; margin: 0 auto; }
+
+  .card { background: #ffffff; border: 1px solid #e5e5e3; border-radius: 14px; padding: 20px 22px; margin-bottom: 14px; }
+
+  .dash-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+  .dash-title { font-size: 20px; font-weight: 600; color: #1a1a1a; margin: 0 0 4px; }
+  .dash-sub { font-size: 13px; color: #6b6b68; margin: 0; }
+
+  /* metric cards - clickable filters */
+  .metric-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 14px; }
+  .metric-card { background: #f7f6f4; border-radius: 10px; padding: 14px 16px; cursor: pointer; border: 2px solid transparent; transition: all 0.15s; user-select: none; }
+  .metric-card:hover { background: #efeeec; }
+  .metric-card.active { border-color: currentColor; background: #ffffff; }
+  .metric-num { font-size: 26px; font-weight: 600; color: #1a1a1a; display: block; line-height: 1; }
+  .metric-label { font-size: 11px; color: #6b6b68; margin-top: 6px; }
+  .metric-bar { height: 4px; border-radius: 2px; margin-top: 10px; background: #e5e5e3; overflow: hidden; }
+  .metric-bar-fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
+
+  /* controls row */
+  .controls-row { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }
+  .search-box { flex: 1; min-width: 200px; position: relative; }
+  .search-box input {
+    width: 100%; padding: 9px 14px 9px 36px; border: 1px solid #e5e5e3; border-radius: 9px;
+    font-size: 13px; outline: none; transition: border-color 0.15s;
+  }
+  .search-box input:focus { border-color: #1d5fa8; }
+  .search-box svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; stroke: #a3a39e; }
+  select {
+    padding: 9px 12px; border: 1px solid #e5e5e3; border-radius: 9px; font-size: 13px;
+    background: #fff; cursor: pointer; outline: none; color: #1a1a1a;
+  }
+  .reset-btn {
+    padding: 9px 14px; border: 1px solid #e5e5e3; border-radius: 9px; background: #fff;
+    font-size: 13px; cursor: pointer; color: #6b6b68; transition: all 0.15s;
+  }
+  .reset-btn:hover { background: #f7f6f4; color: #1a1a1a; }
+
+  .result-count { font-size: 12px; color: #6b6b68; margin-bottom: 10px; }
+  .result-count strong { color: #1a1a1a; }
+
+  /* category sections */
+  .cat-section { margin-bottom: 18px; }
+  .cat-section.hidden { display: none; }
+  .cat-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; cursor: pointer; user-select: none; }
+  .cat-head-left { display: flex; align-items: center; gap: 8px; }
+  .cat-name { font-size: 14px; font-weight: 600; color: #1a1a1a; }
+  .cat-count { font-size: 11px; color: #a3a39e; background: #f0efed; padding: 2px 8px; border-radius: 8px; }
+  .chevron { width: 14px; height: 14px; stroke: #a3a39e; transition: transform 0.2s; }
+  .cat-section.collapsed .chevron { transform: rotate(-90deg); }
+  .cat-section.collapsed .field-grid { display: none; }
+
+  .field-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px; }
+  .field-card {
+    background: #fff; border: 1px solid #e5e5e3; border-radius: 10px; padding: 11px 13px;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .field-card:hover { border-color: #c9c8c4; transform: translateY(-1px); }
+  .field-card.hidden { display: none; }
+  .field-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; gap: 6px; }
+  .field-name { font-family: "SF Mono", "Courier New", monospace; font-size: 12px; color: #1a1a1a; font-weight: 600; }
+  .prio-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .field-type { font-family: "SF Mono", "Courier New", monospace; font-size: 10px; color: #a3a39e; margin-bottom: 5px; }
+  .field-desc { font-size: 11.5px; color: #6b6b68; line-height: 1.45; }
+  .src-row { margin-top: 7px; display: flex; gap: 4px; flex-wrap: wrap; }
+  .src-chip { font-size: 9px; padding: 2px 7px; border-radius: 8px; background: #f0efed; color: #6b6b68; }
+
+  /* detail modal */
+  .modal-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4);
+    display: none; align-items: center; justify-content: center; z-index: 100; padding: 20px;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal-box { background: #fff; border-radius: 14px; padding: 22px 24px; max-width: 420px; width: 100%; }
+  .modal-close { float: right; cursor: pointer; font-size: 18px; color: #a3a39e; line-height: 1; }
+  .modal-field-name { font-family: "SF Mono", "Courier New", monospace; font-size: 16px; font-weight: 600; margin: 0 0 4px; }
+  .modal-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f0efed; font-size: 12.5px; }
+  .modal-row:last-child { border-bottom: none; }
+  .modal-row-label { color: #6b6b68; }
+  .modal-row-val { color: #1a1a1a; font-weight: 500; text-align: right; max-width: 240px; }
+
+  /* opportunity panel */
+  .opp-panel { background: #eaf2fb; border-radius: 12px; padding: 16px 18px; }
+  .opp-title { font-size: 14px; font-weight: 600; color: #1d5fa8; margin: 0 0 10px; }
+  .opp-fields { display: flex; gap: 7px; flex-wrap: wrap; }
+  .opp-chip {
+    font-family: "SF Mono", "Courier New", monospace; font-size: 12px; background: #ffffff; color: #1d5fa8;
+    padding: 5px 10px; border-radius: 8px; cursor: pointer; transition: background 0.15s;
+  }
+  .opp-chip:hover { background: #dceaff; }
+  .opp-desc { font-size: 12px; color: #1d5fa8; margin-top: 10px; line-height: 1.55; }
+
+  .footer-note { text-align: center; font-size: 11px; color: #a3a39e; margin-top: 16px; }
+  .no-results { text-align: center; padding: 30px; color: #a3a39e; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <div class="card">
+    <div class="dash-header">
+      <div>
+        <p class="dash-title">historical_awards — interactive field dashboard</p>
+        <p class="dash-sub">Shortlisted fields for grant / award history issued by a funder · click any field for details</p>
+      </div>
+    </div>
+
+    <div class="metric-row" id="metricRow">
+      <div class="metric-card" data-filter-priority="all" id="metricAll">
+        <span class="metric-num">32</span>
+        <div class="metric-label">total fields</div>
+        <div class="metric-bar"><div class="metric-bar-fill" style="width:100%; background:#6b6b68"></div></div>
+      </div>
+      <div class="metric-card" data-filter-priority="essential" style="color:#d23b3b">
+        <span class="metric-num">12</span>
+        <div class="metric-label">essential</div>
+        <div class="metric-bar"><div class="metric-bar-fill" style="width:38%; background:#d23b3b"></div></div>
+      </div>
+      <div class="metric-card" data-filter-priority="important" style="color:#d99a1f">
+        <span class="metric-num">13</span>
+        <div class="metric-label">important</div>
+        <div class="metric-bar"><div class="metric-bar-fill" style="width:41%; background:#d99a1f"></div></div>
+      </div>
+      <div class="metric-card" data-filter-priority="opportunity" style="color:#1d5fa8">
+        <span class="metric-num">7</span>
+        <div class="metric-label">opportunity</div>
+        <div class="metric-bar"><div class="metric-bar-fill" style="width:22%; background:#1d5fa8"></div></div>
+      </div>
+    </div>
+
+    <div class="controls-row">
+      <div class="search-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+        <input type="text" id="searchInput" placeholder="Search fields by name or description...">
+      </div>
+      <select id="sourceFilter">
+        <option value="all">All sources</option>
+        <option value="360Giving">360Giving</option>
+        <option value="Candid">Candid</option>
+        <option value="IRS">IRS</option>
+        <option value="CCEW">CCEW</option>
+      </select>
+      <select id="sortBy">
+        <option value="default">Default order</option>
+        <option value="name">Sort: name A-Z</option>
+        <option value="priority">Sort: priority</option>
+      </select>
+      <button class="reset-btn" id="resetBtn">Reset filters</button>
+    </div>
+
+    <p class="result-count">Showing <strong id="resultCount">32</strong> of 32 fields</p>
+  </div>
+
+  <div class="card">
+    <div id="categoriesContainer"></div>
+    <div class="no-results" id="noResults" style="display:none">No fields match your filters</div>
+  </div>
+
+  <div class="card opp-panel" style="border:none">
+    <p class="opp-title">PurposeTech AI's unique data opportunity</p>
+    <div class="opp-fields" id="oppFields"></div>
+    <p class="opp-desc">No public register (360Giving, IRS, Candid, CCEW, CRA, ACNC, EU CORDIS) captures grant outcomes, impact metrics, or renewal history. These 7 fields are proprietary to PurposeTech AI and form the core competitive differentiator.</p>
+  </div>
+
+  <p class="footer-note">PurposeTech AI &middot; Historical Grants Data Architecture &middot; Task 2</p>
+
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-box">
+    <span class="modal-close" id="modalClose">&times;</span>
+    <p class="modal-field-name" id="modalName"></p>
+    <div class="modal-row"><span class="modal-row-label">Type</span><span class="modal-row-val" id="modalType"></span></div>
+    <div class="modal-row"><span class="modal-row-label">Priority</span><span class="modal-row-val" id="modalPriority"></span></div>
+    <div class="modal-row"><span class="modal-row-label">Category</span><span class="modal-row-val" id="modalCategory"></span></div>
+    <div class="modal-row"><span class="modal-row-label">Sources</span><span class="modal-row-val" id="modalSources"></span></div>
+    <div class="modal-row"><span class="modal-row-label">Description</span><span class="modal-row-val" id="modalDesc"></span></div>
+  </div>
+</div>
+
+<script>
+const PRIO = {
+  essential:   { color: '#d23b3b', label: 'Essential' },
+  important:   { color: '#d99a1f', label: 'Important' },
+  optional:    { color: '#2e9e4f', label: 'Optional' },
+  opportunity: { color: '#1d5fa8', label: 'Opportunity' }
+};
+
+const DATA = [
+  { cat: 'Award identity', fields: [
+    { name: 'id', type: 'serial PK', prio: 'essential', desc: 'Auto-incrementing internal ID', src: [] },
+    { name: 'external_id', type: 'text', prio: 'essential', desc: 'Source system reference ID', src: ['360Giving','Candid'] },
+    { name: 'slug', type: 'text unique', prio: 'essential', desc: 'URL-safe unique identifier', src: [] },
+    { name: 'data_source', type: 'text', prio: 'essential', desc: 'Ingestion origin tracking', src: ['360Giving','IRS'] },
+  ]},
+  { cat: 'Funder', fields: [
+    { name: 'funder_organization_id', type: 'integer FK', prio: 'essential', desc: 'References organizations table', src: [] },
+    { name: 'funder_name_snapshot', type: 'text', prio: 'important', desc: 'Funder name at time of award', src: [] },
+    { name: 'funder_360giving_org_id', type: 'text', prio: 'important', desc: 'UK org identifier', src: ['360Giving'] },
+    { name: 'funder_ein', type: 'text', prio: 'important', desc: 'US tax ID for matching', src: ['IRS','Candid'] },
+  ]},
+  { cat: 'Recipient', fields: [
+    { name: 'recipient_organization_id', type: 'integer FK', prio: 'essential', desc: 'References organizations table', src: [] },
+    { name: 'recipient_name_snapshot', type: 'text', prio: 'essential', desc: 'Grantee name at time of award', src: [] },
+    { name: 'recipient_uk_charity_number', type: 'text', prio: 'important', desc: 'UK registration match key', src: ['CCEW'] },
+    { name: 'recipient_ein', type: 'text', prio: 'important', desc: 'US registration match key', src: ['IRS'] },
+    { name: 'recipient_country', type: 'text', prio: 'important', desc: 'ISO country code', src: [] },
+    { name: 'recipient_location', type: 'jsonb', prio: 'important', desc: 'Address + lat/lng for mapping', src: ['360Giving','Candid'] },
+  ]},
+  { cat: 'Award details', fields: [
+    { name: 'award_date', type: 'timestamptz', prio: 'essential', desc: 'Date award formally made', src: ['360Giving','Candid'] },
+    { name: 'award_amount', type: 'numeric(15,2)', prio: 'essential', desc: 'Grant value in original currency', src: [] },
+    { name: 'award_currency', type: 'text', prio: 'essential', desc: 'ISO 4217 currency code', src: [] },
+    { name: 'award_amount_usd', type: 'numeric(15,2)', prio: 'important', desc: 'Normalised for cross-currency analysis', src: [] },
+    { name: 'fiscal_year', type: 'integer', prio: 'important', desc: 'For 990-PF matching', src: ['IRS'] },
+    { name: 'project_start_date', type: 'timestamptz', prio: 'important', desc: 'Funded project start', src: [] },
+    { name: 'project_end_date', type: 'timestamptz', prio: 'important', desc: 'Funded project end', src: [] },
+    { name: 'duration_months', type: 'integer', prio: 'optional', desc: 'Computed grant length', src: [] },
+  ]},
+  { cat: 'Classification & purpose', fields: [
+    { name: 'title', type: 'text', prio: 'essential', desc: 'Short descriptive title', src: ['360Giving','Candid'] },
+    { name: 'description', type: 'text', prio: 'important', desc: 'Full purpose narrative', src: ['Candid'] },
+    { name: 'grant_type', type: 'text', prio: 'important', desc: 'project / core_costs / capital...', src: ['360Giving'] },
+    { name: 'program_area', type: 'text', prio: 'important', desc: "Funder's internal fund name", src: [] },
+    { name: 'subject_taxonomy_ids', type: 'integer[]', prio: 'important', desc: 'Cause area codes', src: ['Candid'] },
+    { name: 'geographic_focus', type: 'text[]', prio: 'optional', desc: 'Where work is delivered', src: ['360Giving'] },
+    { name: 'beneficiary_population', type: 'text[]', prio: 'optional', desc: 'Target population groups', src: ['Candid'] },
+  ]},
+  { cat: 'Status & lifecycle', fields: [
+    { name: 'award_status', type: 'text', prio: 'essential', desc: 'active / completed / cancelled', src: [] },
+    { name: 'is_renewed', type: 'boolean', prio: 'opportunity', desc: 'Flags renewal of prior award', src: [] },
+    { name: 'parent_award_id', type: 'integer FK', prio: 'opportunity', desc: 'Links to renewed-from award', src: [] },
+  ]},
+  { cat: 'Outcomes & reporting', fields: [
+    { name: 'outcomes_summary', type: 'text', prio: 'opportunity', desc: 'Grantee-reported narrative', src: [] },
+    { name: 'impact_metrics', type: 'jsonb', prio: 'opportunity', desc: 'Structured KPIs reported', src: [] },
+    { name: 'report_ids', type: 'integer[]', prio: 'opportunity', desc: 'Links progress & final reports', src: [] },
+    { name: 'funder_rating', type: 'smallint', prio: 'opportunity', desc: 'Internal 1-5 outcome score', src: [] },
+  ]},
+  { cat: 'DEI, equity & audit', fields: [
+    { name: 'equity_focus', type: 'boolean', prio: 'optional', desc: 'Equity-targeted work flag', src: [] },
+    { name: 'dei_data', type: 'jsonb', prio: 'optional', desc: 'Demographic data', src: ['360Giving','Candid'] },
+    { name: 'ingested_at', type: 'timestamptz', prio: 'essential', desc: 'Pipeline ingestion time', src: [] },
+    { name: 'created_at', type: 'timestamptz', prio: 'essential', desc: 'Row creation time', src: [] },
+    { name: 'updated_at', type: 'timestamptz', prio: 'essential', desc: 'Auto-managed by trigger', src: [] },
+    { name: 'is_deleted', type: 'boolean', prio: 'important', desc: 'Soft delete flag', src: [] },
+  ]},
+];
+
+let activePriority = 'all';
+let activeSource = 'all';
+let searchTerm = '';
+let sortMode = 'default';
+const collapsedCats = new Set();
+
+function fieldMatches(f) {
+  if (activePriority !== 'all' && f.prio !== activePriority) return false;
+  if (activeSource !== 'all' && !f.src.includes(activeSource)) return false;
+  if (searchTerm && !f.name.toLowerCase().includes(searchTerm) && !f.desc.toLowerCase().includes(searchTerm)) return false;
+  return true;
+}
+
+function render() {
+  const container = document.getElementById('categoriesContainer');
+  container.innerHTML = '';
+  let totalShown = 0;
+
+  DATA.forEach((catData, catIdx) => {
+    let fields = catData.fields.filter(fieldMatches);
+    if (sortMode === 'name') fields = [...fields].sort((a,b) => a.name.localeCompare(b.name));
+    if (sortMode === 'priority') {
+      const order = { essential: 0, important: 1, opportunity: 2, optional: 3 };
+      fields = [...fields].sort((a,b) => order[a.prio] - order[b.prio]);
+    }
+    totalShown += fields.length;
+
+    if (fields.length === 0) return;
+
+    const isCollapsed = collapsedCats.has(catIdx);
+    const section = document.createElement('div');
+    section.className = 'cat-section' + (isCollapsed ? ' collapsed' : '');
+
+    const head = document.createElement('div');
+    head.className = 'cat-head';
+    head.innerHTML = `
+      <div class="cat-head-left">
+        <span class="cat-name">${catData.cat}</span>
+        <span class="cat-count">${fields.length}</span>
+      </div>
+      <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+    `;
+    head.onclick = () => {
+      if (collapsedCats.has(catIdx)) collapsedCats.delete(catIdx);
+      else collapsedCats.add(catIdx);
+      render();
+    };
+    section.appendChild(head);
+
+    const grid = document.createElement('div');
+    grid.className = 'field-grid';
+    fields.forEach(f => {
+      const card = document.createElement('div');
+      card.className = 'field-card';
+      card.onclick = () => openModal(f, catData.cat);
+      card.innerHTML = `
+        <div class="field-top">
+          <span class="field-name">${f.name}</span>
+          <div class="prio-dot" style="background:${PRIO[f.prio].color}"></div>
+        </div>
+        <div class="field-type">${f.type}</div>
+        <div class="field-desc">${f.desc}</div>
+        ${f.src.length ? `<div class="src-row">${f.src.map(s => `<span class="src-chip">${s}</span>`).join('')}</div>` : ''}
+      `;
+      grid.appendChild(card);
+    });
+    section.appendChild(grid);
+    container.appendChild(section);
+  });
+
+  document.getElementById('resultCount').textContent = totalShown;
+  document.getElementById('noResults').style.display = totalShown === 0 ? 'block' : 'none';
+
+  document.querySelectorAll('.metric-card').forEach(c => c.classList.remove('active'));
+  const activeCard = document.querySelector(`[data-filter-priority="${activePriority}"]`);
+  if (activeCard) activeCard.classList.add('active');
+}
+
+function openModal(f, catName) {
+  document.getElementById('modalName').textContent = f.name;
+  document.getElementById('modalType').textContent = f.type;
+  const prioSpan = document.getElementById('modalPriority');
+  prioSpan.textContent = PRIO[f.prio].label;
+  prioSpan.style.color = PRIO[f.prio].color;
+  document.getElementById('modalCategory').textContent = catName;
+  document.getElementById('modalSources').textContent = f.src.length ? f.src.join(', ') : '—';
+  document.getElementById('modalDesc').textContent = f.desc;
+  document.getElementById('modalOverlay').classList.add('show');
+}
+
+document.getElementById('modalClose').onclick = () => document.getElementById('modalOverlay').classList.remove('show');
+document.getElementById('modalOverlay').onclick = (e) => {
+  if (e.target.id === 'modalOverlay') document.getElementById('modalOverlay').classList.remove('show');
+};
+
+document.querySelectorAll('.metric-card').forEach(card => {
+  card.onclick = () => {
+    const p = card.getAttribute('data-filter-priority');
+    activePriority = (activePriority === p) ? 'all' : p;
+    render();
+  };
+});
+
+document.getElementById('searchInput').oninput = (e) => {
+  searchTerm = e.target.value.toLowerCase();
+  render();
+};
+document.getElementById('sourceFilter').onchange = (e) => {
+  activeSource = e.target.value;
+  render();
+};
+document.getElementById('sortBy').onchange = (e) => {
+  sortMode = e.target.value;
+  render();
+};
+document.getElementById('resetBtn').onclick = () => {
+  activePriority = 'all'; activeSource = 'all'; searchTerm = '';
+  document.getElementById('searchInput').value = '';
+  document.getElementById('sourceFilter').value = 'all';
+  document.getElementById('sortBy').value = 'default';
+  sortMode = 'default';
+  collapsedCats.clear();
+  render();
+};
+
+// Opportunity chips
+const oppFieldNames = ['outcomes_summary','impact_metrics','report_ids','funder_rating','is_renewed','parent_award_id','lessons_learned'];
+const oppContainer = document.getElementById('oppFields');
+oppFieldNames.forEach(name => {
+  const chip = document.createElement('span');
+  chip.className = 'opp-chip';
+  chip.textContent = name;
+  chip.onclick = () => {
+    searchTerm = name.toLowerCase();
+    document.getElementById('searchInput').value = name;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    render();
+  };
+  oppContainer.appendChild(chip);
+});
+
+render();
+</script>
+
+</body>
+</html>
